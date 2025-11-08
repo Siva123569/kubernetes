@@ -1,42 +1,28 @@
 from flask import Flask, render_template, request, jsonify
 import requests
-import os
 
 app = Flask(__name__)
 
-# Environment variables (set these in Azure → Configuration)
-AZURE_TRANSLATOR_KEY = os.getenv("AZURE_TRANSLATOR_KEY")
-AZURE_TRANSLATOR_ENDPOINT = os.getenv("AZURE_TRANSLATOR_ENDPOINT")
+# Azure Function URL (replace with your deployed function)
+AZURE_FUNCTION_URL = "https://<your-function-app>.azurewebsites.net/api/ai_function"
 
-@app.route("/")
-def home():
-    return render_template("index.html")
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-@app.route("/translate", methods=["POST"])
-def translate_text():
+@app.route('/process', methods=['POST'])
+def process_text():
     data = request.get_json()
-    text = data.get("text")
-    to_lang = data.get("to")
+    text = data.get('text', '')
+    if not text:
+        return jsonify({'error': 'Please enter text'}), 400
 
-    path = '/translate?api-version=3.0'
-    params = f'&to={to_lang}'
-    constructed_url = AZURE_TRANSLATOR_ENDPOINT + path + params
+    # Call Azure Function
+    res = requests.post(AZURE_FUNCTION_URL, json={"text": text})
+    if res.status_code != 200:
+        return jsonify({'error': 'AI function failed'}), 400
 
-    headers = {
-        'Ocp-Apim-Subscription-Key': AZURE_TRANSLATOR_KEY,
-        'Ocp-Apim-Subscription-Region': 'canadacentral',  # change if your region differs
-        'Content-type': 'application/json'
-    }
-    body = [{'text': text}]
+    return jsonify({'result': res.json()})
 
-    response = requests.post(constructed_url, headers=headers, json=body)
-    result = response.json()
-    translated_text = result[0]['translations'][0]['text']
-    return jsonify({'translated': translated_text})
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
-
-
-
-
